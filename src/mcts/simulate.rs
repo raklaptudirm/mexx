@@ -13,7 +13,7 @@ pub fn material_count(position: &ataxx::Position) -> f64 {
     1.0 / (1.0 + f64::exp(-eval / 400.0))
 }
 
-pub fn monty_network(position: &ataxx::Position) -> f64 {
+pub fn monty(position: &ataxx::Position) -> f64 {
     1.0 / (1.0 + (-(NETS.0.eval(position) as f64) / 400.0).exp())
 }
 

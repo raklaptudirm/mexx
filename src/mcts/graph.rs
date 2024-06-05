@@ -11,7 +11,7 @@ pub struct Tree {
 impl Tree {
     pub fn new(position: ataxx::Position) -> Tree {
         let policy = policy::monty;
-        let simulator = simulate::material_count;
+        let simulator = simulate::monty;
 
         let mut root = Node::new(position, -1);
         root.expand(policy);
