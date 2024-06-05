@@ -9,6 +9,8 @@ edition = "2021"
 ataxx = { path = "ataxx" }
 uxi = { path = "uxi" }
 rand = "0.8.5"
+goober = { git = 'https://github.com/jw1912/goober.git' }
+
 
 [profile.release]
 opt-level = 3
