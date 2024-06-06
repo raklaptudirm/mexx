@@ -50,7 +50,12 @@ impl PolicyNetwork {
         let from_subnet = &self.subnets[(mov.source() as usize).min(49)];
         let from_vec = from_subnet.out(feats);
 
-        let to_subnet = &self.subnets[50 + (mov.target() as usize).min(48)];
+        let target = if mov.is_single() {
+            63
+        } else {
+            mov.target() as usize
+        };
+        let to_subnet = &self.subnets[50 + (target).min(48)];
         let to_vec = to_subnet.out(feats);
 
         from_vec.dot(&to_vec)
