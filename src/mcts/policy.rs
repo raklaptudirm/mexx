@@ -1,4 +1,7 @@
+use crate::mcts::{get_features, NETS};
 use ataxx::{BitBoard, Move};
+
+use goober::{activation, layer, FeedForwardNetwork, Matrix, SparseVector, Vector};
 
 pub type Fn = fn(position: &ataxx::Position, mov: Move) -> f64;
 
@@ -26,8 +29,8 @@ pub fn handcrafted(position: &ataxx::Position, mov: Move) -> f64 {
     score.max(0.1)
 }
 
-pub fn monty(node: &Node, mov: Move) -> f64 {
-    NETS.1.get(&mov, &get_features(&node.position)) as f64
+pub fn monty(position: &ataxx::Position, mov: Move) -> f64 {
+    NETS.1.get(&mov, &get_features(position)) as f64
 }
 
 #[repr(C)]

@@ -1,7 +1,7 @@
 use goober::SparseVector;
 
 use super::policy::PolicyNetwork;
-use super::simulate::ValueNetwork;
+use super::value::ValueNetwork;
 
 #[repr(C)]
 pub struct Nets(pub ValueNetwork<2916, 256>, pub PolicyNetwork);
