@@ -74,7 +74,7 @@ fn main() {
         for (i, fen) in BENCH_FENS.iter().enumerate() {
             println!("[#{}] {}", i + 1, fen);
             let position = ataxx::Position::from_str(fen).unwrap();
-            let mut searcher = mcts::Searcher::new(position, mcts::policy::handcrafted, mcts::value::material);
+            let mut searcher = mcts::Searcher::new(position, mcts::policy::monty, mcts::value::monty);
             let limits = mcts::Limits {
                 maxnodes: Some(50000),
                 maxdepth: Some(10),

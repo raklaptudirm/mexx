@@ -1,7 +1,10 @@
+use crate::mcts::{get_features, NETS};
 use ataxx::{BitBoard, Move};
+use goober::{activation, layer, FeedForwardNetwork, SparseVector};
 
 pub type Fn = fn(position: &ataxx::Position, mov: Move) -> f64;
 
+#[allow(dead_code)]
 pub fn handcrafted(position: &ataxx::Position, mov: Move) -> f64 {
     let mut score = 0.0;
 
@@ -24,4 +27,32 @@ pub fn handcrafted(position: &ataxx::Position, mov: Move) -> f64 {
     }
 
     score.max(0.1)
+}
+
+pub fn monty(position: &ataxx::Position, mov: Move) -> f64 {
+    NETS.1.get(&mov, &get_features(position)) as f64
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, FeedForwardNetwork)]
+pub struct SubNet {
+    ft: layer::SparseConnected<activation::ReLU, 2916, 8>,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct PolicyNetwork {
+    pub subnets: [SubNet; 99],
+}
+
+impl PolicyNetwork {
+    pub fn get(&self, mov: &Move, feats: &SparseVector) -> f32 {
+        let from_subnet = &self.subnets[(mov.source() as usize).min(49)];
+        let from_vec = from_subnet.out(feats);
+
+        let to_subnet = &self.subnets[50 + (mov.target() as usize).min(48)];
+        let to_vec = to_subnet.out(feats);
+
+        from_vec.dot(&to_vec)
+    }
 }
