@@ -1,5 +1,6 @@
 use std::f64::consts::SQRT_2;
 
+#[derive(Clone)]
 pub struct Params {
     cpuct: Param,
 }
@@ -15,6 +16,7 @@ impl Params {
     }
 }
 
+#[derive(Clone)]
 pub struct Param {
     val: f64,
 

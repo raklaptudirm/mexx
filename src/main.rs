@@ -1,7 +1,4 @@
-use core::time;
-use std::{env, str::FromStr};
-
-use commands::{search, Limits};
+use std::{env, str::FromStr, time};
 use uxi::Client;
 
 mod commands;
@@ -20,22 +17,22 @@ fn main() {
 
         const BENCH_FENS: &[&str] = &[
             "x-1-1-o/-1-1-1-/1-1-1-1/-1-1-1-/1-1-1-1/-1-1-1-/o-1-1-x x 0 1",
-            "x-1-1-o/1-1-1-1/1-1-1-1/1-1-1-1/1-1-1-1/1-1-1-1/o-1-1-x x 0 1",
+            // "x-1-1-o/1-1-1-1/1-1-1-1/1-1-1-1/1-1-1-1/1-1-1-1/o-1-1-x x 0 1",
             "x1-1-1o/2-1-2/-------/2-1-2/-------/2-1-2/o1-1-1x x 0 1",
-            "x5o/1-----1/1-3-1/1-1-1-1/1-3-1/1-----1/o5x x 0 1",
+            // "x5o/1-----1/1-3-1/1-1-1-1/1-3-1/1-----1/o5x x 0 1",
             "x-1-1-o/1-1-1-1/-1-1-1-/-1-1-1-/-1-1-1-/1-1-1-1/o-1-1-x x 0 1",
             "x5o/1--1--1/1--1--1/7/1--1--1/1--1--1/o5x x 0 1",
-            "x-3-o/1-1-1-1/1-1-1-1/3-3/1-1-1-1/1-1-1-1/o-3-x x 0 1",
-            "x2-2o/3-3/3-3/-------/3-3/3-3/o2-2x x 0 1",
-            "x2-2o/2-1-2/1-3-1/-2-2-/1-3-1/2-1-2/o2-2x x 0 1",
+            // "x-3-o/1-1-1-1/1-1-1-1/3-3/1-1-1-1/1-1-1-1/o-3-x x 0 1",
+            // "x2-2o/3-3/3-3/-------/3-3/3-3/o2-2x x 0 1",
+            // "x2-2o/2-1-2/1-3-1/-2-2-/1-3-1/2-1-2/o2-2x x 0 1",
             "x5o/7/7/7/7/7/o5x x 0 1",
             "x5o/7/2-1-2/7/2-1-2/7/o5x x 0 1",
             "x5o/7/3-3/2-1-2/3-3/7/o5x x 0 1",
             "x2-2o/3-3/2---2/7/2---2/3-3/o2-2x x 0 1",
             "x2-2o/3-3/7/--3--/7/3-3/o2-2x x 0 1",
             "x1-1-1o/2-1-2/2-1-2/7/2-1-2/2-1-2/o1-1-1x x 0 1",
-            "x5o/7/2-1-2/3-3/2-1-2/7/o5x x 0 1",
-            "x5o/7/3-3/2---2/3-3/7/o5x x 0 1",
+            // "x5o/7/2-1-2/3-3/2-1-2/7/o5x x 0 1",
+            // "x5o/7/3-3/2---2/3-3/7/o5x x 0 1",
             "x5o/2-1-2/1-3-1/7/1-3-1/2-1-2/o5x x 0 1",
             "x5o/1-3-1/2-1-2/7/2-1-2/1-3-1/o5x x 0 1",
             "2x3o/7/7/7/o6/5x1/6x o 2 2",
@@ -71,18 +68,28 @@ fn main() {
             "x6/7/4x2/3x3/7/7/o5x o 2 2",
         ];
 
+        let mut total_nodes = 0;
+
+        let start = time::Instant::now();
         for (i, fen) in BENCH_FENS.iter().enumerate() {
             println!("[#{}] {}", i + 1, fen);
             let position = ataxx::Position::from_str(fen).unwrap();
-            let tc = Limits {
-                nodes: 20000,
-                depth: u16::MAX,
-                movetime: time::Duration::MAX,
+            let mut searcher = mcts::Searcher::new(position, mcts::policy::handcrafted, mcts::value::material);
+            let limits = mcts::Limits {
+                maxnodes: Some(50000),
+                maxdepth: Some(10),
+                movetime: None,
                 movestogo: None,
             };
 
-            search(position, tc);
+            searcher.search(limits, &mut total_nodes);
         }
+        let elapsed = start.elapsed().as_millis();
+
+        // Assert that the node-count hasn't changed unexpectedly.
+        debug_assert!(total_nodes == 261787);
+
+        println!("nodes {} nps {}", total_nodes, total_nodes as u128 * 1000 / elapsed);
 
         return
     }

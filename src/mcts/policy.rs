@@ -1,18 +1,15 @@
-use super::{get_features, Node, NETS};
 use ataxx::{BitBoard, Move};
 
-use goober::{activation, layer, FeedForwardNetwork, Matrix, SparseVector, Vector};
+pub type Fn = fn(position: &ataxx::Position, mov: Move) -> f64;
 
-pub type Fn = fn(node: &Node, mov: Move) -> f64;
-
-pub fn handcrafted(node: &Node, mov: Move) -> f64 {
+pub fn handcrafted(position: &ataxx::Position, mov: Move) -> f64 {
     let mut score = 0.0;
 
-    let stm = node.position.side_to_move;
-    let xtm = !node.position.side_to_move;
+    let stm = position.side_to_move;
+    let xtm = !position.side_to_move;
 
-    let friends = node.position.bitboard(stm);
-    let enemies = node.position.bitboard(xtm);
+    let friends = position.bitboard(stm);
+    let enemies = position.bitboard(xtm);
 
     let old_neighbours = BitBoard::single(mov.source());
     let new_neighbours = BitBoard::single(mov.target());

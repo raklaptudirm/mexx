@@ -2,7 +2,7 @@ use super::{value_feature_map, NETS};
 
 pub type Fn = fn(position: &ataxx::Position) -> f64;
 
-pub fn material_count(position: &ataxx::Position) -> f64 {
+pub fn material(position: &ataxx::Position) -> f64 {
     let stm = position.side_to_move;
 
     let stm_piece_n = position.bitboard(stm).cardinality();

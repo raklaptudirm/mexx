@@ -34,3 +34,7 @@ jobs:
       - run: cargo build  # look for build errors
       - run: cargo test   # look for test errors
       - run: cargo doc    # look for bad documentation
+
+      # run the engine benchmark in debug mode with all
+      # invariant assertions enables to find various bugs
+      - run: ./target/debug/mexx bench
