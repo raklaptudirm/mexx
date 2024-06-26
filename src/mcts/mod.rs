@@ -1,13 +1,13 @@
+use std::time;
+
+pub use self::params::*;
+pub use self::tree::*;
+
 pub mod policy;
 pub mod value;
 
 mod params;
 mod tree;
-
-use std::time;
-
-pub use self::params::*;
-pub use self::tree::*;
 
 #[derive(Clone)]
 pub struct Searcher {
@@ -151,9 +151,11 @@ impl Searcher {
         let parent_node = node.parent_node;
         let parent_edge = node.parent_edge;
 
+        let edge_visits = self.tree.edge(parent_node, parent_edge).visits;
+
         let node = self.tree.node_mut(node_ptr);
 
-        let score = if position.is_game_over() {
+        let score = if position.is_game_over() || edge_visits == 0 {
             self.simulate(position)
         } else {
             if !node.expanded() {
@@ -199,9 +201,11 @@ impl Searcher {
         let mut best_ptr: EdgePtr = -1;
         let mut best_uct = 0.0;
 
+        let fpu = 1.0 - parent.q();
+
         for (ptr, edge) in node.edges.iter().enumerate() {
             // If the edge hasn't been expanded yet, use the parent's q value.
-            let q = if edge.ptr == -1 { parent.q() } else { edge.q() };
+            let q = if edge.ptr == -1 { fpu } else { edge.q() };
 
             let child_uct = q + edge.policy * e / (edge.visits as f64 + 1.0);
 

@@ -1,4 +1,5 @@
 use std::{env, str::FromStr, time};
+
 use uxi::Client;
 
 mod commands;
@@ -87,7 +88,7 @@ fn main() {
         let elapsed = start.elapsed().as_millis();
 
         // Assert that the node-count hasn't changed unexpectedly.
-        debug_assert!(total_nodes == 5504);
+        debug_assert!(total_nodes == 2152064);
 
         println!("nodes {} nps {}", total_nodes, total_nodes as u128 * 1000 / elapsed);
 

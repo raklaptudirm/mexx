@@ -9,10 +9,13 @@ pub fn wdl_to_eval(wdl: f64) -> f64 {
 }
 
 pub fn material(position: &ataxx::Position) -> f64 {
+    const SCALE: f64 = 12.5;
+    const TEMPO: f64 = SCALE * 4.0;
+
     let stm = position.side_to_move;
 
     let stm_piece_n = position.bitboard(stm).cardinality();
     let xtm_piece_n = position.bitboard(!stm).cardinality();
 
-    stm_piece_n as f64 - xtm_piece_n as f64
+    stm_piece_n as f64 * SCALE - xtm_piece_n as f64 * SCALE + TEMPO
 }
