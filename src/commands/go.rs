@@ -1,8 +1,11 @@
+use std::time;
+
 use ataxx::Position;
-use uxi::{error, Bundle, Command, Flag, RunError};
+use uxi::{Bundle, Command, error, Flag, RunError};
+
+use crate::mcts;
 
 use super::Context;
-use crate::mcts;
 
 // TODO: Move these macros into UXI
 
@@ -38,17 +41,47 @@ pub fn go() -> Command<Context> {
 
         // Update the searcher with the new position and start searching.
         searcher.update_position(position);
-        let bestmove = searcher.search(parse_limits(&bundle, &position)?, &mut nodes);
+        match parse_limits(&bundle, &position)? {
+            // Search flags received, search the position.
+            Config::Search(limits) => {
+                let bestmove = searcher.search(limits, &mut nodes);
 
-        println!("bestmove {}", bestmove);
+                println!("bestmove {}", bestmove);
 
-        lock_mutable! {
-            bundle > ctx =>
-            // Push the new search state to the context.
-            ctx.searcher = searcher;
+                lock_mutable! {
+                    bundle > ctx =>
+                    // Push the new search state to the context.
+                    ctx.searcher = searcher;
+                }
+
+                Ok(())
+            }
+
+            // Perft flags received, run a perft on the position.
+            Config::Perft(bulk, max_depth) => {
+                for depth in 1..=max_depth {
+                    let start = time::Instant::now();
+                    let nodes = if bulk {
+                        ataxx::perft::<false, true>(position, depth)
+                    } else {
+                        ataxx::perft::<false, false>(position, depth)
+                    };
+                    let duration = start.elapsed();
+
+                    let time = duration.as_millis().max(1);
+
+                    println!(
+                        "info depth {} nodes {} time {} nps {}",
+                        depth,
+                        nodes,
+                        time,
+                        1000 * nodes as u128 / time
+                    );
+                }
+
+                Ok(())
+            }
         }
-
-        Ok(())
     })
     // Flags for reporting the current time situation.
     .flag("binc", Flag::Single)
@@ -63,12 +96,20 @@ pub fn go() -> Command<Context> {
     // Flags for setting the search type.
     // .flag("ponder", Flag::Single)
     .flag("infinite", Flag::Single)
+    // Flags for go perft command.
+    .flag("perft", Flag::Single)
+    .flag("bulk", Flag::Boolean)
     // This command should be run in a separate thread so that the Client
     // can still respond to and run other Commands while this one is running.
     .parallelize(true)
 }
 
-fn parse_limits(bundle: &Bundle<Context>, position: &Position) -> Result<mcts::Limits, RunError> {
+enum Config {
+    Perft(bool, u8),
+    Search(mcts::Limits),
+}
+
+fn parse_limits(bundle: &Bundle<Context>, position: &Position) -> Result<Config, RunError> {
     ////////////////////////////////////////////
     // Check which of the limit flags are set //
     ////////////////////////////////////////////
@@ -87,11 +128,16 @@ fn parse_limits(bundle: &Bundle<Context>, position: &Position) -> Result<mcts::L
     // Infinite flag
     let infinite = bundle.is_flag_set("infinite");
 
+    // Perft flags
+    let perft = bundle.is_flag_set("perft");
+    let bulk = bundle.is_flag_set("bulk");
+
     ///////////////////////////////////////////////////////
     // Ensure that the given flag configuration is valid //
     ///////////////////////////////////////////////////////
 
     let std_tc = btime || wtime || binc || winc;
+    let oth_tc = depth || nodes || movetime;
 
     // Either all or none of the standard time control flags must be set.
     if std_tc && !(btime && wtime && binc && winc) {
@@ -99,8 +145,18 @@ fn parse_limits(bundle: &Bundle<Context>, position: &Position) -> Result<mcts::L
     }
 
     // No other time control flags may be set alongside 'infinite'.
-    if infinite && (std_tc || depth || nodes || movetime) {
+    if infinite && (std_tc || oth_tc) {
         return error!("bad flag set: time control flags set alongside infinite");
+    }
+
+    // The bulk flag can't be set without the perft flag.
+    if !perft && bulk {
+        return error!("bad flag set: bulk flag set without perft flag");
+    }
+
+    // The perft flag can't be set alongside time control flags.
+    if perft && (std_tc || oth_tc || infinite) {
+        return error!("bad flag set: time control flags set alongside perft");
     }
 
     // A little utility macro to parse the given flag into the required type.
@@ -113,27 +169,31 @@ fn parse_limits(bundle: &Bundle<Context>, position: &Position) -> Result<mcts::L
         };
     }
 
-    //////////////////////////////////////
-    // Parse the provided search limits //
-    //////////////////////////////////////
+    ////////////////////////////////////////////
+    // Parse the provided search/perft limits //
+    ////////////////////////////////////////////
 
-    Ok(mcts::Limits {
-        maxnodes: get_flag!("nodes"),
-        maxdepth: get_flag!("depth"),
-        movetime: if std_tc {
-            let (time, incr) = match position.side_to_move {
-                ataxx::Piece::Black => ("btime", "binc"),
-                ataxx::Piece::White => ("wtime", "winc"),
-                _ => unreachable!(),
-            };
+    if perft {
+        Ok(Config::Perft(bulk, get_flag!("perft").unwrap()))
+    } else {
+        Ok(Config::Search(mcts::Limits {
+            maxnodes: get_flag!("nodes"),
+            maxdepth: get_flag!("depth"),
+            movetime: if std_tc {
+                let (time, incr) = match position.side_to_move {
+                    ataxx::Piece::Black => ("btime", "binc"),
+                    ataxx::Piece::White => ("wtime", "winc"),
+                    _ => unreachable!(),
+                };
 
-            let time: u128 = get_flag!(time).unwrap();
-            let incr: u128 = get_flag!(incr).unwrap();
+                let time: u128 = get_flag!(time).unwrap();
+                let incr: u128 = get_flag!(incr).unwrap();
 
-            Some((time / 20 + incr / 2).max(1))
-        } else {
-            get_flag!("movetime")
-        },
-        movestogo: get_flag!("movestogo"),
-    })
+                Some((time / 20 + incr / 2).max(1))
+            } else {
+                get_flag!("movetime")
+            },
+            movestogo: get_flag!("movestogo"),
+        }))
+    }
 }
