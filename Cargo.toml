@@ -1,13 +1,12 @@
-[workspace]
-
 [package]
 name = "mexx"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ataxx = { path = "ataxx" }
-uxi = { path = "uxi" }
+ataxx = "0.2.0"
+uxi = "0.1.0"
+rand = "0.8.5"
 derive-new = "0.5"
 derive_more = "0.99.18"
 
