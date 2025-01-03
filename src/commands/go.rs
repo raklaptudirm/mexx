@@ -1,7 +1,7 @@
 use std::time;
 
 use ataxx::Position;
-use uxi::{Bundle, Command, error, Flag, RunError};
+use uxi::{error, Bundle, Command, Flag, RunError};
 
 use crate::mcts;
 
@@ -9,19 +9,17 @@ use super::Context;
 
 // TODO: Move these macros into UXI
 
-macro_rules! lock_mutable {
+macro_rules! lock {
     ($bundle:ident > $ctx:ident => $($stmt:stmt;)*) => {
-        let mut $ctx = $bundle.lock();
+        let $ctx = $bundle.lock();
         $(
             $stmt
         )*
         drop($ctx);
     };
-}
 
-macro_rules! lock {
-    ($bundle:ident > $ctx:ident => $($stmt:stmt;)*) => {
-        let $ctx = $bundle.lock();
+    ($bundle:ident > mut $ctx:ident => $($stmt:stmt;)*) => {
+        let mut $ctx = $bundle.lock();
         $(
             $stmt
         )*
@@ -48,8 +46,8 @@ pub fn go() -> Command<Context> {
 
                 println!("bestmove {}", bestmove);
 
-                lock_mutable! {
-                    bundle > ctx =>
+                lock! {
+                    bundle > mut ctx =>
                     // Push the new search state to the context.
                     ctx.searcher = searcher;
                 }
