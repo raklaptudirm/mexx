@@ -1,5 +1,7 @@
 use std::f64::consts::SQRT_2;
 
+use derive_new::new;
+
 #[derive(Clone)]
 pub struct Params {
     cpuct: Param,
@@ -16,7 +18,7 @@ impl Params {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, new)]
 pub struct Param {
     val: f64,
 
@@ -27,10 +29,6 @@ pub struct Param {
 }
 
 impl Param {
-    pub fn new(val: f64, min: f64, max: f64) -> Param {
-        Param { val, min, max }
-    }
-
     #[allow(unused)]
     pub fn set(&mut self, val: f64) {
         self.val = val;

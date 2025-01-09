@@ -1,98 +1,85 @@
+use std::time;
+
+use ataxx::Position;
 use uxi::{error, Bundle, Command, Flag, RunError};
 
-use super::Context;
 use crate::mcts;
+
+use super::Context;
+
+// TODO: Move these macros into UXI
+
+macro_rules! lock {
+    ($bundle:ident > $ctx:ident => $($stmt:stmt;)*) => {
+        let $ctx = $bundle.lock();
+        $(
+            $stmt
+        )*
+        drop($ctx);
+    };
+
+    ($bundle:ident > mut $ctx:ident => $($stmt:stmt;)*) => {
+        let mut $ctx = $bundle.lock();
+        $(
+            $stmt
+        )*
+        drop($ctx);
+    };
+}
 
 pub fn go() -> Command<Context> {
     Command::new(|bundle: Bundle<Context>| {
-        let binc = bundle.is_flag_set("binc");
-        let winc = bundle.is_flag_set("winc");
-        let btime = bundle.is_flag_set("btime");
-        let wtime = bundle.is_flag_set("wtime");
-
-        let depth = bundle.is_flag_set("depth");
-        let nodes = bundle.is_flag_set("nodes");
-        let movetime = bundle.is_flag_set("movetime");
-
-        let infinite = bundle.is_flag_set("infinite");
-
-        let std_tc = btime || wtime || binc || winc;
-
-        if std_tc && !(btime && wtime && binc && winc) {
-            return error!("bad flag set: missing standard time control flags");
+        lock! {
+            bundle > ctx =>
+            let position = ctx.position; // Get the position to search
+            let mut searcher = ctx.searcher.clone(); // Get the previous search state
         }
-
-        if infinite && (std_tc || depth || nodes || movetime) {
-            return error!("bad flag set: time control flags set alongside infinite");
-        }
-
-        let ctx = bundle.lock();
-        let position = ctx.position;
-        let mut searcher = ctx.searcher.clone();
-        drop(ctx);
-
-        let limits = mcts::Limits {
-            maxnodes: match bundle.get_single_flag("nodes") {
-                Some(nodes) => Some(nodes.parse()?),
-                None => None,
-            },
-            maxdepth: match bundle.get_single_flag("depth") {
-                Some(depth) => Some(depth.parse()?),
-                None => None,
-            },
-            movetime: {
-                let mov_time = match bundle.get_single_flag("movetime") {
-                    Some(movetime) => movetime.parse()?,
-                    None => u128::MAX,
-                };
-
-                if std_tc {
-                    macro_rules! get_flag {
-                        ($name:literal) => {
-                            bundle.get_single_flag($name).unwrap().parse()?
-                        };
-                    }
-
-                    let our_time: u128 = match position.side_to_move {
-                        ataxx::Piece::Black => get_flag!("wtime"),
-                        ataxx::Piece::White => get_flag!("btime"),
-                        _ => unreachable!(),
-                    };
-
-                    let our_inc: u128 = match position.side_to_move {
-                        ataxx::Piece::Black => get_flag!("winc"),
-                        ataxx::Piece::White => get_flag!("binc"),
-                        _ => unreachable!(),
-                    };
-
-                    let usable_time = (our_time / 20 + our_inc / 2).max(1);
-
-                    Some(usable_time.min(mov_time))
-                } else if movetime {
-                    Some(mov_time)
-                } else {
-                    None
-                }
-            },
-
-            movestogo: match bundle.get_single_flag("movestogo") {
-                Some(string) => Some(string.parse()?),
-                None => None,
-            },
-        };
-
-        searcher.update_position(position);
 
         let mut nodes = 0;
-        let bestmove = searcher.search(limits, &mut nodes);
 
-        println!("bestmove {}", bestmove);
+        // Update the searcher with the new position and start searching.
+        searcher.update_position(position);
+        match parse_limits(&bundle, &position)? {
+            // Search flags received, search the position.
+            Config::Search(limits) => {
+                let bestmove = searcher.search(limits, &mut nodes);
 
-        let mut ctx = bundle.lock();
-        ctx.searcher = searcher;
-        drop(ctx);
+                println!("bestmove {}", bestmove);
 
-        Ok(())
+                lock! {
+                    bundle > mut ctx =>
+                    // Push the new search state to the context.
+                    ctx.searcher = searcher;
+                }
+
+                Ok(())
+            }
+
+            // Perft flags received, run a perft on the position.
+            Config::Perft(bulk, max_depth) => {
+                for depth in 1..=max_depth {
+                    let start = time::Instant::now();
+                    let nodes = if bulk {
+                        ataxx::perft::<false, true>(position, depth)
+                    } else {
+                        ataxx::perft::<false, false>(position, depth)
+                    };
+                    let duration = start.elapsed();
+
+                    let time = duration.as_millis().max(1);
+
+                    println!(
+                        "info depth {} nodes {} time {} nps {}",
+                        depth,
+                        nodes,
+                        time,
+                        1000 * nodes as u128 / time
+                    );
+                }
+
+                Ok(())
+            }
+        }
     })
     // Flags for reporting the current time situation.
     .flag("binc", Flag::Single)
@@ -107,7 +94,104 @@ pub fn go() -> Command<Context> {
     // Flags for setting the search type.
     // .flag("ponder", Flag::Single)
     .flag("infinite", Flag::Single)
+    // Flags for go perft command.
+    .flag("perft", Flag::Single)
+    .flag("bulk", Flag::Boolean)
     // This command should be run in a separate thread so that the Client
     // can still respond to and run other Commands while this one is running.
     .parallelize(true)
+}
+
+enum Config {
+    Perft(bool, u8),
+    Search(mcts::Limits),
+}
+
+fn parse_limits(bundle: &Bundle<Context>, position: &Position) -> Result<Config, RunError> {
+    ////////////////////////////////////////////
+    // Check which of the limit flags are set //
+    ////////////////////////////////////////////
+
+    // Standard Time Control flags
+    let binc = bundle.is_flag_set("binc");
+    let winc = bundle.is_flag_set("winc");
+    let btime = bundle.is_flag_set("btime");
+    let wtime = bundle.is_flag_set("wtime");
+
+    // Other limit flags
+    let depth = bundle.is_flag_set("depth");
+    let nodes = bundle.is_flag_set("nodes");
+    let movetime = bundle.is_flag_set("movetime");
+
+    // Infinite flag
+    let infinite = bundle.is_flag_set("infinite");
+
+    // Perft flags
+    let perft = bundle.is_flag_set("perft");
+    let bulk = bundle.is_flag_set("bulk");
+
+    ///////////////////////////////////////////////////////
+    // Ensure that the given flag configuration is valid //
+    ///////////////////////////////////////////////////////
+
+    let std_tc = btime || wtime || binc || winc;
+    let oth_tc = depth || nodes || movetime;
+
+    // Either all or none of the standard time control flags must be set.
+    if std_tc && !(btime && wtime && binc && winc) {
+        return error!("bad flag set: missing standard time control flags");
+    }
+
+    // No other time control flags may be set alongside 'infinite'.
+    if infinite && (std_tc || oth_tc) {
+        return error!("bad flag set: time control flags set alongside infinite");
+    }
+
+    // The bulk flag can't be set without the perft flag.
+    if !perft && bulk {
+        return error!("bad flag set: bulk flag set without perft flag");
+    }
+
+    // The perft flag can't be set alongside time control flags.
+    if perft && (std_tc || oth_tc || infinite) {
+        return error!("bad flag set: time control flags set alongside perft");
+    }
+
+    // A little utility macro to parse the given flag into the required type.
+    macro_rules! get_flag {
+        ($name:expr) => {
+            match bundle.get_single_flag($name) {
+                Some(value) => Some(value.parse()?),
+                None => None,
+            }
+        };
+    }
+
+    ////////////////////////////////////////////
+    // Parse the provided search/perft limits //
+    ////////////////////////////////////////////
+
+    if perft {
+        Ok(Config::Perft(bulk, get_flag!("perft").unwrap()))
+    } else {
+        Ok(Config::Search(mcts::Limits {
+            maxnodes: get_flag!("nodes"),
+            maxdepth: get_flag!("depth"),
+            movetime: if std_tc {
+                let (time, incr) = match position.side_to_move {
+                    ataxx::Piece::Black => ("btime", "binc"),
+                    ataxx::Piece::White => ("wtime", "winc"),
+                    _ => unreachable!(),
+                };
+
+                let time: u128 = get_flag!(time).unwrap();
+                let incr: u128 = get_flag!(incr).unwrap();
+
+                Some((time / 20 + incr / 2).max(1))
+            } else {
+                get_flag!("movetime")
+            },
+            movestogo: get_flag!("movestogo"),
+        }))
+    }
 }
