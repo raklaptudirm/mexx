@@ -58,7 +58,7 @@ impl Tree {
     }
 
     pub fn best_move(&self) -> ataxx::Move {
-        let root = self.node(0);
+        let root = self.root();
 
         let mut best_mov = ataxx::Move::NULL;
         let mut best_scr = 0.0;
@@ -76,6 +76,24 @@ impl Tree {
         }
 
         best_mov
+    }
+
+    pub fn try_reroot(&mut self, root: ataxx::Position) -> bool {
+        let root_node = self.root();
+        let mut node_ptr = None;
+
+        for edge in root_node.edges.iter() {
+            if self.root_pos.after_move::<true>(edge.mov).checksum == root.checksum {
+                node_ptr = Some(edge.ptr);
+            }
+        }
+
+        if let Some(node_ptr) = node_ptr {
+            self.reroot(node_ptr);
+            true
+        } else {
+            false
+        }
     }
 }
 

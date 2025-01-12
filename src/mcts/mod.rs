@@ -52,7 +52,9 @@ impl Searcher {
     }
 
     pub fn update_position(&mut self, position: ataxx::Position) {
-        self.tree = Tree::new(position);
+        if !self.tree.try_reroot(position) {
+            self.tree = Tree::new(position);
+        }
     }
 
     pub fn search(&mut self, limits: Limits, total_nodes: &mut u64) -> ataxx::Move {

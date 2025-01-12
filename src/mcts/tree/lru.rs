@@ -6,7 +6,7 @@ use std::mem;
 use derive_more::{Deref, DerefMut};
 use derive_new::new;
 
-use super::{Edge, Node};
+use super::{Edge, Node, NodePtr};
 
 /// Cache is a Least Recently Used (LRU) Cache for [Nodes](Node), which allows
 /// the search tree to utilize limited memory efficiently.
@@ -34,9 +34,12 @@ impl Cache {
 
     /// new creates a new Cache with the given capacity for storing Nodes.
     pub fn new(cap: usize) -> Cache {
+        let mut root_edge = Edge::new(ataxx::Move::NULL);
+        root_edge.ptr = 0;
+
         Cache {
             map: vec![Entry::new(); cap],
-            root_edge: Edge::new(ataxx::Move::NULL),
+            root_edge,
             cap,
             void: 0,  // The first (0) entry is currently a void.
             head: -1, // Currently there is no most recently used entry.
@@ -94,6 +97,10 @@ impl Cache {
         node_ptr
     }
 
+    pub fn reroot(&mut self, ptr: NodePtr) {
+        self.root_edge.ptr = ptr;
+    }
+
     /// detach removes the given entry from the cache, but keeps its data. To
     /// also remove the entry's data, use [`Self::remove_lru`].
     fn detach(&mut self, ptr: i32) {
@@ -139,6 +146,11 @@ impl Cache {
 }
 
 impl Cache {
+    /// root returns a reference to the root entry in the LRU.
+    pub fn root(&self) -> &Entry {
+        self.node(self.root_edge.ptr)
+    }
+
     /// node returns a reference to the Entry at the given pointer.
     pub fn node(&self, ptr: i32) -> &Entry {
         &self.map[ptr as usize]
